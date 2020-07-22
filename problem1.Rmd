@@ -1,0 +1,48 @@
+---
+title: "Problem2"
+author: "Yuze Zhou"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First we'll load in the data:
+
+```{r}
+setwd('F:\\stat 587\\lec5')
+require(splines)
+
+data.file = read.table('wage.txt',sep = " ", header = TRUE)
+wage = as.vector(data.file$wage)
+age = as.vector(data.file$age)
+age.grid<-seq(from=(min(age)-1), to = (max(age)+1))
+```
+
+Then we would like to fit the data with a fourth-order polynomial, the corresponding plot is shown below:
+
+```{r}
+model.poly = lm(wage~age+I(age^2)+I(age^3)+I(age^4))
+plot(age,wage,col="grey",xlab="Age",ylab="Wages")
+points(age.grid,predict(model.poly,newdata = list(age=age.grid)),col="darkgreen",lwd=2,type="l")
+
+```
+
+Again we fit it with cubic splines with knots at 25, 40 and 60, and the corresponding plot is shown below:
+
+```{r}
+model.cubic_splines = lm(wage ~ bs(age,knots = c(25,40,60)))
+plot(age,wage,col="grey",xlab="Age",ylab="Wages")
+points(age.grid,predict(model.cubic_splines,newdata = list(age=age.grid)),col="darkgreen",lwd=2,type="l")
+```
+
+Finally, we fit it with smooth splines with the penalty parameter selected by cross-validation, and the plot is shown below:
+
+```{r}
+smooth.cv = smooth.spline(age,wage,cv = TRUE)
+plot(age,wage,col="grey",xlab="Age",ylab="Wages")
+lines(smooth.cv)
+```
+
+Although the polynomial regression might look smooth at the first glance, but it yields very wild behaviours on the boundaries compared to the other two methods. Moreover, compared to cubic splines, which looks smooth between each node, the smooth splines yields more smoother fits overall.

@@ -1,0 +1,79 @@
+---
+title: "Homework_6_Yuze_Zhou_yz909"
+author: "Yuze Zhou"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+After loading the observation data, we would like to fit with a simple regression model, $y_{i}=\beta_{0}+\beta_{1}x_{i}+\epsilon_{i}$ and get the confidence interval for $\theta=\beta_{1}/\beta_{0}$. As the sample size is pretty small, bootstrap method is adopted to get it. Here I used two different bootstraping method, one is sampling the observations, the other is sampling the residuals.
+
+```{r}
+x = c(0.01, 0.48, 0.71, 0.95, 1.19, 0.01, 0.48, 1.44, 0.71, 1.96, 0.01, 1.44, 1.96)
+y = c(127.6, 124.0, 110.8, 103.9, 101.5, 130.1, 122.0, 92.3, 113.1, 83.7, 128.0, 91.4, 86.2)
+n = length(x)
+```
+
+##Bootstraping the Oberservations
+The first method we adopt is bootstraping the observations. For each bootstrap iteration, we randomly sample $n$ observations with replacement and refit the model with the sampled observations to obtain one single bootstrap sample for $\theta$. Therefore after $B$ iterations, we will have a pool of $B$ samples for $\theta$, which could give the confidence interval desired.
+
+```{r}
+theta_bootstrap = vector(length=1000)
+for(b in 1:1000){
+  sample_sign = sample((1:n),n,replace=T)
+  x_bootstrap = x[sample_sign]
+  y_bootstrap = y[sample_sign]
+  lm_bootstrap = lm(y_bootstrap~x_bootstrap)
+  parameter_bootstrap = as.vector(lm_bootstrap$coefficients)
+  theta_bootstrap[b] = parameter_bootstrap[2]/parameter_bootstrap[1]
+}
+theta_bootstrap = sort(theta_bootstrap, decreasing=F)
+```
+
+The histogram for $\theta$ is:
+
+```{r}
+hist(theta_bootstrap, breaks=30)
+```
+
+The corresponding 95% confidence interval is:
+
+```{r}
+c(theta_bootstrap[26],theta_bootstrap[975])
+```
+
+##Bootstraping the Residuals
+
+The second method we adopted is bootstraping the residuals. During each bootstrap iteration, assume the coefficients we obtained from the previous linear model fit are $\hat{\beta}_{0}$ and $\hat{\beta}_{1}$, the residuals are $r_{i}$ and the normalized residuals are $rn_{i} = r_{i}/\sqrt{1-h_{i}}$, where $h_{i}$s are the leverages. For this new iteration, we sample $n$ new residuals $r^{*}_{i}$ from the normailzed residuals with replacement and obtain $y_{new} = \hat{\beta}_{0}+\hat{\beta}_{1}x_{i}+r^{*}_{i}$. Now we regress $y_{new}$ on $x$ to obtain a new bootstrap set for $\beta_{0}$ and $\beta_{1}$ as well as $\theta$.
+
+```{r}
+theta_res_bootstrap = vector(length=1000)
+lm_bootstrap_res = lm(y~x)
+hat_values = hatvalues(lm_bootstrap_res)
+res_standardized = as.vector(lm_bootstrap_res$residuals)/as.vector(sqrt(1-hat_values))
+for(b in 1:1000){
+  y_new = as.vector(predict(lm_bootstrap_res))+sample(res_standardized,n,replace=T)
+  lm_bootstrap_res = lm(y_new~x)
+  parameter_res_bootstrap = as.vector(lm_bootstrap_res$coefficients)
+  theta_res_bootstrap[b] = parameter_res_bootstrap[2]/parameter_res_bootstrap[1]
+  hat_values = hatvalues(lm_bootstrap_res)
+  res_standardized = as.vector(lm_bootstrap_res$residuals)/as.vector(sqrt(1-hat_values))
+}
+theta_res_bootstrap = sort(theta_res_bootstrap, decreasing=F)
+```
+
+The histogram for $\theta$ from this method is:
+
+```{r}
+hist(theta_res_bootstrap)
+```
+
+The corresponding 95% confidence interval is:
+
+```{r}
+c(theta_res_bootstrap[26],theta_res_bootstrap[975])
+```
+
+The confidence interval provided by the second methos is less robust and a little bit narrower compared to the first, since the scale of $y$ is much bigger than $x$.

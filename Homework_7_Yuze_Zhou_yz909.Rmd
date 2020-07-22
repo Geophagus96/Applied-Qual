@@ -1,0 +1,184 @@
+---
+title: "Homework_7_Yuze_Zhou"
+author: "Yuze Zhou"
+date: "2020Äê4ÔÂ25ÈÕ"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##(i)
+
+First we'll generate the seven samples for training the Gaussian Process Model and load packages that are needed
+
+```{r}
+require(pracma)
+require(ggplot2)
+x_train = runif(7)
+y_train = exp(-1.4*x_train)*cos(7*pi*x_train/2)
+```
+
+##(ii)
+
+The function for calculating the log-likelihood for different values of $\theta$ is shown as below
+```{r}
+log_likelihood_theta = function(theta, y, x){
+  n = length(y)
+  R = exp(-theta*as.matrix(dist(x))^2)
+  inv_R = solve(R)
+  beta = (as.numeric(t(x)%*%inv_R%*%x))^(-1)*as.numeric(t(x)%*%inv_R%*%y)
+  residual = y-x*beta
+  sigma_z = (1/n)*as.numeric(t(residual)%*%inv_R%*%residual)
+  log_likelihood = n*log(sigma_z)+log(det(R))
+  return(log_likelihood)
+}
+```
+
+The optimal parameters obtained from MLE is denoted as \textbf{theta_mle}, \textbf{beta_mle} and \textbf{sigma_mle}:
+
+```{r}
+MLE = optim(1,log_likelihood_theta, y=y_train, x=x_train)
+theta_mle = MLE$par
+R_mle = exp(-theta_mle*as.matrix(dist(x_train))^2)
+inv_R_mle = solve(R_mle)
+beta_mle = (as.numeric(t(x_train)%*%inv_R_mle%*%x_train))^(-1)*as.numeric(t(x_train)%*%inv_R_mle%*%y_train)
+residual_mle = y_train-x_train*beta_mle
+sigma_mle = (1/length(y_train))*as.numeric(t(residual_mle)%*%inv_R_mle%*%residual_mle)
+```
+
+Therefore $\hat{\theta}$ is:
+```{r}
+theta_mle
+```
+
+$\hat{\beta}$ is:
+```{r}
+beta_mle
+```
+
+$\hat{\sigma^{2}}$ is:
+```{r}
+sigma_mle
+```
+
+##(iii)
+
+Now we generate another 1000 pairs of samples to test different methods for MLE
+
+```{r}
+x_test = linspace(0,1,1000)
+y_test = exp(-1.4*x_test)*cos(7*pi*x_test/2)
+```
+
+The corresponding plot looks like:
+
+```{r}
+ggplot()+
+  geom_point(mapping = aes(x=x_test, y=y_test),color ='black')+
+  labs(x='x', y='y')
+```
+
+##(iv)
+
+The corresponding best linear estimators are denoted as $MLE_pred$
+
+```{r}
+dist_train_test = matrix(rep(x_test,7),1000,7)-matrix(rep(x_train,1000),1000,7,byrow = T)
+MLE_pred = x_test*beta_mle+exp(-theta_mle*(dist_train_test)^2)%*%inv_R_mle%*%(y_train-x_train*beta_mle)
+```
+
+If compared to the original $y$, the corresponding plot will look like, with the black line marking the true value and the red line marking the predicted value based on MLE:
+
+```{r}
+ggplot()+
+  geom_point(mapping = aes(x=x_test, y=y_test),color ='black')+
+  geom_point(mapping = aes(x=x_test, y=MLE_pred),color = 'red')+
+  labs(x='x', y='y')
+```
+
+##(v)
+
+The MSPE for MLE_EBLUP is:
+
+```{r}
+mean((MLE_pred-y_test)^2)
+```
+
+##(vi)
+
+First we'll calculate the optimal parameters based on REML:
+
+```{r}
+log_reml_theta = function(theta, y, x){
+  n = length(y)
+  R = exp(-theta*as.matrix(dist(x))^2)
+  inv_R = solve(R)
+  beta = (as.numeric(t(x)%*%inv_R%*%x))^(-1)*as.numeric(t(x)%*%inv_R%*%y)
+  residual = y-x*beta
+  sigma_z = (1/(n-1))*as.numeric(t(residual)%*%inv_R%*%residual)
+  log_likelihood = (n-1)*log(sigma_z)+log(det(R))
+  return(log_likelihood)
+}
+REML = optim(1,log_reml_theta, y=y_train, x=x_train)
+theta_reml = REML$par
+R_reml = exp(-theta_reml*as.matrix(dist(x_train))^2)
+inv_R_reml = solve(R_reml)
+beta_reml = (as.numeric(t(x_train)%*%inv_R_reml%*%x_train))^(-1)*as.numeric(t(x_train)%*%inv_R_reml%*%y_train)
+residual_reml = y_train-x_train*beta_reml
+sigma_reml = (1/(length(y_train)-1))*as.numeric(t(residual_reml)%*%inv_R_reml%*%residual_reml)
+```
+
+The corresponding predicted values are:
+
+```{r}
+reml_pred = x_test*beta_reml+exp(-theta_reml*(dist_train_test)^2)%*%inv_R_reml%*%(y_train-x_train*beta_reml)
+```
+
+The MSPE based on REML is:
+
+```{r}
+mean((reml_pred-y_test)^2)
+```
+
+##(vii)
+
+First we'll calculate the optimal parameters based on leave-one-out loss function:
+
+```{r}
+leave_one_out_mle = function(theta, y, x){
+  leave_one_err = 0
+  n = length(y)
+  for (i in c(1:n)){
+    y_leave_one = y[c(-i)]
+    x_leave_one = x[c(-i)]
+    R_hat = exp(-theta*as.matrix(dist(x_leave_one))^2)
+    inv_R = solve(R_hat)
+    beta_hat = (as.numeric(t(x_leave_one)%*%inv_R%*%x_leave_one))^(-1)*as.numeric(t(x_leave_one)%*%inv_R%*%y_leave_one)
+    r_0 = exp(-theta*(x_leave_one-x[i])^2)
+    y_i_pred = x[i]*beta_hat+as.numeric(t(r_0)%*%inv_R%*%(y_leave_one-x_leave_one*beta_hat))
+    leave_one_err = leave_one_err + (y_i_pred-y[i])^2
+  }
+  return(leave_one_err)
+}
+loo_mle = optim(1,leave_one_out_mle, y=y_train, x=x_train)
+theta_loo = loo_mle$par
+R_loo = exp(-theta_loo*as.matrix(dist(x_train))^2)
+inv_R_loo = solve(R_loo)
+beta_loo = (as.numeric(t(x_train)%*%inv_R_loo%*%x_train))^(-1)*as.numeric(t(x_train)%*%inv_R_loo%*%y_train)
+residual_loo = y_train-x_train*beta_loo
+sigma_loo = (1/(length(y_train)-1))*as.numeric(t(residual_loo)%*%inv_R_loo%*%residual_loo)
+```
+
+The corresponding predicted values are:
+
+```{r}
+loo_pred = x_test*beta_loo+exp(-theta_loo*(dist_train_test)^2)%*%inv_R_loo%*%(y_train-x_train*beta_loo)
+```
+
+The MSPE based on leave-one-out estimation is:
+
+```{r}
+mean((loo_pred-y_test)^2)
+```
